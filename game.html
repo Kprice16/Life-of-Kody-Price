@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pong vs AI</title>
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      color: white;
+      font-family: sans-serif;
+      flex-direction: column;
+    }
+
+    h1 {
+      font-size: 48px;
+      margin: 10px;
+    }
+
+    canvas {
+      border: 2px solid #fff;
+      background: #111;
+    }
+
+    #startBtn, #restartBtn, #homeBtn {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 18px;
+      background: #444;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+
+    #homeBtn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+    }
+  </style>
+</head>
+<body>
+  <button id="homeBtn" onclick="window.location.href='index.html'">Home</button>
+  <h1>PONG</h1>
+  <canvas id="pongCanvas" width="800" height="500"></canvas>
+  <button id="startBtn">Start Game</button>
+  <button id="restartBtn" style="display:none;">Restart Game</button>
+
+  <script>
+    const canvas = document.getElementById("pongCanvas");
+    const ctx = canvas.getContext("2d");
+    const startBtn = document.getElementById("startBtn");
+    const restartBtn = document.getElementById("restartBtn");
+
+    const paddleWidth = 10, paddleHeight = 100;
+    let playerY, aiY;
+    const paddleSpeed = 6;
+
+    const ballSize = 10;
+    let ballX, ballY, ballSpeedX, ballSpeedY;
+    let initialSpeedX = 5;
+    let initialSpeedY = 3;
+
+    let playerScore = 0;
+    let aiScore = 0;
+    let lastScoreTime = Date.now();
+    let winner = null;
+    let gameRunning = false;
+
+    const keys = {};
+    document.addEventListener("keydown", (e) => (keys[e.key] = true));
+    document.addEventListener("keyup", (e) => (keys[e.key] = false));
+
+    function resetPositions() {
+      playerY = canvas.height / 2 - paddleHeight / 2;
+      aiY = playerY;
+      ballX = canvas.width / 2 - ballSize / 2;
+      ballY = canvas.height / 2 - ballSize / 2;
+      ballSpeedX = initialSpeedX * (Math.random() > 0.5 ? 1 : -1);
+      ballSpeedY = initialSpeedY * (Math.random() > 0.5 ? 1 : -1);
+      lastScoreTime = Date.now();
+    }
+
+    function resetGame() {
+      playerScore = 0;
+      aiScore = 0;
+      winner = null;
+      gameRunning = true;
+      restartBtn.style.display = "none";
+      resetPositions();
+      requestAnimationFrame(gameLoop);
+    }
+
+    function drawRect(x, y, w, h, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, w, h);
+    }
+
+    function drawBall(x, y, size, color) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(x + size/2, y + size/2, size/2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawScore() {
+      ctx.fillStyle = "#fff";
+      ctx.font = "32px Arial";
+      ctx.fillText(playerScore, canvas.width / 4, 50);
+      ctx.fillText(aiScore, (canvas.width * 3) / 4, 50);
+    }
+
+    function drawWinner() {
+      if (winner) {
+        ctx.fillStyle = "#fff";
+        ctx.font = "48px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(`${winner} Wins!`, canvas.width / 2, canvas.height / 2);
+      }
+    }
+
+    function drawCenterLine() {
+      ctx.strokeStyle = "#fff";
+      ctx.setLineDash([10, 10]);
+      ctx.beginPath();
+      ctx.moveTo(canvas.width / 2, 0);
+      ctx.lineTo(canvas.width / 2, canvas.height);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    function resetBall(scoredBy) {
+      if (scoredBy === "player") playerScore++;
+      if (scoredBy === "ai") aiScore++;
+
+      if (playerScore >= 10) {
+        winner = "Player";
+        gameRunning = false;
+        restartBtn.style.display = "inline-block";
+        return;
+      }
+      if (aiScore >= 10) {
+        winner = "AI";
+        gameRunning = false;
+        restartBtn.style.display = "inline-block";
+        return;
+      }
+
+      resetPositions();
+    }
+
+    function updateBallSpeedIfNeeded() {
+      const timeSinceLastScore = (Date.now() - lastScoreTime) / 1000;
+      if (timeSinceLastScore >= 30 && !winner) {
+        ballSpeedX *= 1.005;
+        ballSpeedY *= 1.005;
+      }
+    }
+
+    function update() {
+      if (!gameRunning) return;
+
+      ballX += ballSpeedX;
+      ballY += ballSpeedY;
+
+      if (keys["ArrowUp"] && playerY > 0) playerY -= paddleSpeed;
+      if (keys["ArrowDown"] && playerY < canvas.height - paddleHeight) playerY += paddleSpeed;
+
+      const aiCenter = aiY + paddleHeight / 2;
+      if (aiCenter < ballY) aiY += paddleSpeed * 0.6;
+      else aiY -= paddleSpeed * 0.6;
+      aiY = Math.max(Math.min(aiY, canvas.height - paddleHeight), 0);
+
+      if (ballY <= 0 || ballY + ballSize >= canvas.height) ballSpeedY = -ballSpeedY;
+
+      if (ballX <= paddleWidth && ballY + ballSize >= playerY && ballY <= playerY + paddleHeight) {
+        ballSpeedX = -ballSpeedX;
+      }
+
+      if (
+        ballX + ballSize >= canvas.width - paddleWidth &&
+        ballY + ballSize >= aiY &&
+        ballY <= aiY + paddleHeight
+      ) {
+        ballSpeedX = -ballSpeedX;
+      }
+
+      if (ballX < 0) resetBall("ai");
+      if (ballX > canvas.width) resetBall("player");
+
+      updateBallSpeedIfNeeded();
+    }
+
+    function draw() {
+      drawRect(0, 0, canvas.width, canvas.height, "#111");
+      drawCenterLine();
+      drawRect(0, playerY, paddleWidth, paddleHeight, "#0f0");
+      drawRect(canvas.width - paddleWidth, aiY, paddleWidth, paddleHeight, "#f00");
+      drawBall(ballX, ballY, ballSize, "#fff");
+      drawScore();
+      drawWinner();
+    }
+
+    function gameLoop() {
+      update();
+      draw();
+      if (gameRunning) requestAnimationFrame(gameLoop);
+    }
+
+    startBtn.addEventListener("click", () => {
+      startBtn.style.display = "none";
+      resetGame();
+    });
+
+    restartBtn.addEventListener("click", () => {
+      resetGame();
+    });
+  </script>
+</body>
+</html>
